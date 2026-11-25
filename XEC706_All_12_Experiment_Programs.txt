@@ -1,0 +1,846 @@
+XEC706 – VLSI DESIGN AND EMBEDDED SYSTEMS LAB
+PROGRAMS FOR EXPERIMENTS 1–12
+Source: Uploaded XEC706 VLSI Design and Embedded Systems Laboratory Manual.
+
+IMPORTANT NOTES
+1. These are transcribed from the manual, with obvious formatting/syntax repairs only where noted.
+2. Experiment 3: The manual does not contain a separate Verilog source program. It gives only the place-and-route procedure and refers to a half-adder example. A suitable half-adder module is included as an illustrative implementation, NOT as a program printed in the manual.
+3. Experiment 1: The manual's LCD Verilog listing only performs part of the initialization sequence; it does not send character data. Do not treat it as a complete text-display implementation.
+4. Experiment 5 is combinational LED control, not actual blinking. The manual itself says true blinking needs sequential logic and a clock.
+5. Experiment 10: The manual's stepper-motor code has inconsistent GPIO pin assignments (the theory says P1.19–P1.22, but the code uses low-order masks and even writes one phase to IO0PIN). Verify the kit wiring and correct pin mapping before hardware use.
+6. Experiment 11 is titled EPROM and interrupt, but the actual listing implements I2C EEPROM write/read and seven-segment display. It does not demonstrate an interrupt.
+7. Experiment 12's ADC and DAC programs are the code printed in the manual; the DAC listing toggles GPIO pins and does not clearly configure an LPC2148 DAC peripheral.
+8. Embedded C programs target LPC2148 registers and require the correct LPC214x device header and matching hardware wiring.
+
+============================================================
+EXPERIMENT 1 – DISPLAY TEXT ON 16×2 LCD USING FPGA
+Verilog listing printed in manual (incomplete initialization example)
+============================================================
+
+module lcd(
+    input wire clk,
+    output reg rs,
+    output reg en,
+    output reg [3:0] data
+);
+
+    reg [25:0] count = 0;
+    reg [5:0] state = 0;
+
+    // 1 ms pulse generator for a 50 MHz clock
+    always @(posedge clk) begin
+        count <= count + 1;
+        if (count == 50000) begin
+            count <= 0;
+            state <= state + 1;
+        end
+    end
+
+    // LCD initialization sequence (manual listing)
+    always @(posedge clk) begin
+        case (state)
+            0: {rs, data, en} <= {1'b0, 4'b0011, 1'b1};
+            1: {rs, data, en} <= {1'b0, 4'b0010, 1'b1};
+            2: {rs, data, en} <= {1'b0, 4'b0010, 1'b1};
+            3: {rs, data, en} <= {1'b0, 4'b1000, 1'b1};
+            4: {rs, data, en} <= {1'b0, 4'b0000, 1'b1};
+            5: {rs, data, en} <= {1'b0, 4'b1100, 1'b1};
+            6: {rs, data, en} <= {1'b0, 4'b0000, 1'b1};
+            7: {rs, data, en} <= {1'b0, 4'b0001, 1'b1};
+        endcase
+    end
+endmodule
+
+XDC constraints printed in manual (check against your exact FPGA board):
+set_property PACKAGE_PIN W5 [get_ports clk]
+set_property IOSTANDARD LVCMOS33 [get_ports clk]
+set_property PACKAGE_PIN U18 [get_ports rs]
+set_property IOSTANDARD LVCMOS33 [get_ports rs]
+set_property PACKAGE_PIN T18 [get_ports en]
+set_property IOSTANDARD LVCMOS33 [get_ports en]
+set_property PACKAGE_PIN W7 [get_ports {data[0]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {data[0]}]
+set_property PACKAGE_PIN W6 [get_ports {data[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {data[1]}]
+set_property PACKAGE_PIN U8 [get_ports {data[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {data[2]}]
+set_property PACKAGE_PIN V8 [get_ports {data[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {data[3]}]
+
+============================================================
+EXPERIMENT 2 – SIMULATION AND SYNTHESIS OF LOGIC GATES
+============================================================
+
+module and_gate(input wire a, input wire b, output wire y);
+    assign y = a & b;
+endmodule
+
+module or_gate(input wire a, input wire b, output wire y);
+    assign y = a | b;
+endmodule
+
+module nand_gate(input wire a, input wire b, output wire y);
+    assign y = ~(a & b);
+endmodule
+
+module nor_gate(input wire a, input wire b, output wire y);
+    assign y = ~(a | b);
+endmodule
+
+module xor_gate(input wire a, input wire b, output wire y);
+    assign y = a ^ b;
+endmodule
+
+module xnor_gate(input wire a, input wire b, output wire y);
+    assign y = ~(a ^ b);
+endmodule
+
+============================================================
+EXPERIMENT 3 – PLACE, ROUTE AND BACK ANNOTATION USING FPGA
+============================================================
+
+The manual does not provide a dedicated Verilog listing for this experiment.
+It describes the implementation flow and uses a half-adder example. The following
+half-adder module is included only as a basic design you can synthesize/place/route:
+
+module half_adder_exp3(
+    input wire a,
+    input wire b,
+    output wire sum,
+    output wire carry
+);
+    assign sum = a ^ b;
+    assign carry = a & b;
+endmodule
+
+============================================================
+EXPERIMENT 4 – ADDER AND SUBTRACTOR
+============================================================
+
+module half_adder(
+    input wire a, b,
+    output wire sum, carry
+);
+    assign sum = a ^ b;
+    assign carry = a & b;
+endmodule
+
+module full_adder(
+    input wire x, y, z,
+    output wire sum, carry
+);
+    assign sum = x ^ y ^ z;
+    assign carry = (x & y) | (y & z) | (x & z);
+endmodule
+
+module half_subtractor(
+    input wire a, b,
+    output wire diff, borrow
+);
+    assign diff = a ^ b;
+    assign borrow = (~a) & b;
+endmodule
+
+module full_subtractor(
+    input wire x, y, z,   // z is borrow-in
+    output wire diff, borrow
+);
+    assign diff = x ^ y ^ z;
+    assign borrow = ((~x) & y) | ((~x) & z) | (y & z);
+endmodule
+
+============================================================
+EXPERIMENT 5 – COMBINATIONAL LED CONTROL
+============================================================
+
+module top_module(
+    input wire SW0,
+    input wire SW1,
+    output wire LED0
+);
+    // Manual design: direct combinational switch-to-LED control.
+    // This does NOT blink; it turns the LED on when SW0 is high.
+    assign LED0 = SW0;
+
+    // Optional combinational selection example from the manual:
+    // assign LED0 = SW1 ? ~SW0 : SW0;
+endmodule
+
+XDC constraints printed in manual:
+set_property PACKAGE_PIN V17 [get_ports SW0]
+set_property IOSTANDARD LVCMOS33 [get_ports SW0]
+set_property PACKAGE_PIN V16 [get_ports SW1]
+set_property IOSTANDARD LVCMOS33 [get_ports SW1]
+set_property PACKAGE_PIN U16 [get_ports LED0]
+set_property IOSTANDARD LVCMOS33 [get_ports LED0]
+
+============================================================
+EXPERIMENT 6 – SEQUENTIAL LED BLINKING CONTROLLED BY SWITCH
+============================================================
+
+module led_blink(
+    input wire clk,
+    input wire sw,
+    output reg led
+);
+    reg [24:0] counter = 0;
+    reg blink_state = 0;
+
+    always @(posedge clk) begin
+        if (sw) begin
+            if (counter == 25_000_000) begin
+                counter <= 0;
+                blink_state <= ~blink_state;
+            end else begin
+                counter <= counter + 1;
+            end
+        end else begin
+            counter <= 0;
+            blink_state <= 1'b0;
+        end
+    end
+
+    always @(*) begin
+        led = blink_state;
+    end
+endmodule
+
+XDC constraints printed in manual:
+set_property PACKAGE_PIN W5 [get_ports clk]
+set_property IOSTANDARD LVCMOS33 [get_ports clk]
+create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk]
+
+============================================================
+EXPERIMENT 7 – LED INTERFACING WITH LPC2148 ARM7
+============================================================
+
+PROGRAM 1 – LED running pattern on P1.16 to P1.23
+------------------------------------------------------------
+
+#include <lpc21xx.h>
+
+void wait(void)
+{
+    long d;
+    for (d = 0; d < 10000; d++);
+}
+
+int main(void)
+{
+    unsigned int i;
+    IODIR1 = 0x00FF0000;   // P1.16 to P1.23 as outputs
+
+    while (1)
+    {
+        for (i = (1U << 16); i < (1U << 24); i <<= 1)
+        {
+            IOSET1 = i;
+            wait();
+            IOCLR1 = i;
+        }
+
+        for (i = (1U << 23); i >= (1U << 16); i >>= 1)
+        {
+            IOSET1 = i;
+            wait();
+            IOCLR1 = i;
+            if (i == (1U << 16)) break;
+        }
+    }
+}
+
+PROGRAM 2 – Alternating LED pattern
+------------------------------------------------------------
+
+#include <LPC214x.h>
+
+void delay(void)
+{
+    unsigned int i = 0xFFFFFF;
+    while (i--);
+}
+
+int main(void)
+{
+    PINSEL2 = 0x00000000;
+    IODIR1 = 0xFF000000;   // P1.24 to P1.31 output
+
+    while (1)
+    {
+        IOSET1 = (0x55 << 24);
+        delay();
+        IOCLR1 = (0x55 << 24);
+
+        IOSET1 = (0xAA << 24);
+        delay();
+        IOCLR1 = (0xAA << 24);
+    }
+}
+
+============================================================
+EXPERIMENT 8 – LCD INTERFACING WITH LPC2148
+============================================================
+
+#include <LPC214x.h>
+
+void LcdInit(void);
+void DisplayRow(int row, char *str);
+void Send_Command(unsigned char cmd);
+void Send_Data(unsigned char dat);
+void LcdCmd(unsigned char cmd);
+void LcdDat(unsigned char dat);
+void SmallDelay(void);
+void Delay250(void);
+void DelayMs(int n);
+
+int main(void)
+{
+    LcdInit();
+    DisplayRow(1, " Wel-Come ");
+    DisplayRow(2, " BINARYUPDATES ");
+
+    while (1)
+    {
+    }
+}
+
+void LcdInit(void)
+{
+    IO1DIR = 0x03000000;       // P1.24 EN, P1.25 RS outputs
+    IO1CLR = 0x03000000;
+
+    IO0DIR = 0x40428000;       // P0.15, P0.17, P0.22, P0.30 outputs
+    IO0CLR = 0x40428000;
+
+    DelayMs(6);
+    Send_Command(0x03);
+    DelayMs(6);
+    Send_Command(0x03);
+    Delay250();
+    Send_Command(0x03);
+    Delay250();
+    Send_Command(0x02);
+    Delay250();
+
+    LcdCmd(0x28);              // 4-bit, 2-line, 5x7
+    LcdCmd(0x08);              // Display off
+    LcdCmd(0x0C);              // Display on, cursor off
+    LcdCmd(0x06);              // Entry mode
+}
+
+void Send_Command(unsigned char cmd)
+{
+    if (cmd & 0x01) IO0SET = (1U << 15); else IO0CLR = (1U << 15);
+    if (cmd & 0x02) IO0SET = (1U << 17); else IO0CLR = (1U << 17);
+    if (cmd & 0x04) IO0SET = (1U << 22); else IO0CLR = (1U << 22);
+    if (cmd & 0x08) IO0SET = (1U << 30); else IO0CLR = (1U << 30);
+
+    IO1CLR = 0x03000000;       // RS=0, EN=0
+    SmallDelay();
+    IO1SET = 0x01000000;       // EN=1
+    SmallDelay();
+    IO1CLR = 0x01000000;       // EN=0
+    SmallDelay();
+}
+
+void Send_Data(unsigned char dat)
+{
+    if (dat & 0x01) IO0SET = (1U << 15); else IO0CLR = (1U << 15);
+    if (dat & 0x02) IO0SET = (1U << 17); else IO0CLR = (1U << 17);
+    if (dat & 0x04) IO0SET = (1U << 22); else IO0CLR = (1U << 22);
+    if (dat & 0x08) IO0SET = (1U << 30); else IO0CLR = (1U << 30);
+
+    IO1SET = 0x02000000;       // RS=1
+    IO1CLR = 0x01000000;       // EN=0
+    SmallDelay();
+    IO1SET = 0x01000000;       // EN=1
+    SmallDelay();
+    IO1CLR = 0x01000000;       // EN=0
+    SmallDelay();
+}
+
+void LcdCmd(unsigned char cmd)
+{
+    Send_Command(cmd >> 4);
+    Send_Command(cmd & 0x0F);
+    Delay250();
+    Delay250();
+}
+
+void LcdDat(unsigned char dat)
+{
+    Send_Data(dat >> 4);
+    Send_Data(dat & 0x0F);
+    Delay250();
+    Delay250();
+}
+
+void DisplayRow(int row, char *str)
+{
+    int k;
+
+    if (row == 1)
+        LcdCmd(0x80);
+    else
+        LcdCmd(0xC0);
+
+    for (k = 0; k < 16; k++)
+    {
+        if (str[k])
+            LcdDat((unsigned char)str[k]);
+        else
+            break;
+    }
+
+    while (k < 16)
+    {
+        LcdDat(' ');
+        k++;
+    }
+}
+
+void SmallDelay(void)
+{
+    int i;
+    for (i = 0; i < 100; i++);
+}
+
+void Delay250(void)
+{
+    int k, j = 200;
+    for (k = 0; k < 100; k++)
+        j--;
+}
+
+void DelayMs(int n)
+{
+    int k;
+    for (k = 0; k < n; k++)
+    {
+        Delay250();
+        Delay250();
+    }
+}
+
+============================================================
+EXPERIMENT 9 – I2C SERIAL COMMUNICATION WITH LPC2148
+============================================================
+
+#include <LPC214x.h>
+
+#define PCF8574AP
+
+#ifdef PCF8574AP
+    #define U1 0x70
+    #define U2 0x72
+    #define U3 0x74
+    #define U4 0x76
+#endif
+
+#ifdef PCF8574P
+    #define U1 0x40
+    #define U2 0x42
+    #define U3 0x44
+    #define U4 0x46
+#endif
+
+void I2CTransferByte(unsigned char Slv_Addr, unsigned char Data);
+void delay(void);
+
+int main(void)
+{
+    PINSEL0 = 0x00000050;     // Select I2C0 SCL0 and SDA0
+    I2C0SCLH = 0xC0;
+    I2C0SCLL = 0xC0;
+
+    while (1)
+    {
+        I2CTransferByte(U1, 0xFF);
+        I2CTransferByte(U2, 0xFF);
+        I2CTransferByte(U3, 0xFF);
+        I2CTransferByte(U4, 0xFF);
+        delay();
+
+        I2CTransferByte(U4, 0x86);  // E
+        delay();
+        I2CTransferByte(U4, 0x92);  // S
+        I2CTransferByte(U3, 0x86);  // E
+        delay();
+        I2CTransferByte(U4, 0x88);  // A
+        I2CTransferByte(U3, 0x92);  // S
+        I2CTransferByte(U2, 0x86);  // E
+        delay();
+        I2CTransferByte(U4, 0xBF);  // -
+        I2CTransferByte(U3, 0x88);  // A
+        I2CTransferByte(U2, 0x92);  // S
+        I2CTransferByte(U1, 0x86);  // E
+        delay();
+    }
+}
+
+void I2CTransferByte(unsigned char Slv_Addr, unsigned char Data)
+{
+    I2C0CONSET = 0x40;             // Enable I2C master
+    I2C0CONSET = 0x20;             // START
+    while (I2C0STAT != 0x08);
+    I2C0CONCLR = 0x20;
+
+    I2C0DAT = Slv_Addr;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x18);
+
+    I2C0DAT = Data;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x28);
+
+    I2C0CONSET = 0x10;             // STOP
+    I2C0CONCLR = 0x08;
+    I2C0CONCLR = 0x40;             // Disable I2C
+}
+
+void delay(void)
+{
+    unsigned int i, j;
+    for (i = 0; i < 200; i++)
+        for (j = 0; j <= 9999; j++);
+}
+
+============================================================
+EXPERIMENT 10 – STEPPER MOTOR INTERFACING WITH LPC2148
+============================================================
+
+CAUTION: The manual's code below contains inconsistent port/pin usage.
+The theory states P1.19–P1.22, but the code uses 0xF0 and IO0PIN.
+Verify and correct the sequence according to the actual trainer-board wiring
+before connecting the motor/driver.
+
+#include <LPC214x.h>
+
+void delay_ms(void);
+
+int main(void)
+{
+    PINSEL2 = 0x00000000;
+    IO1DIR = 0x000000F0;
+
+    while (1)
+    {
+        IO1PIN = 0x00000090;
+        delay_ms();
+
+        IO0PIN = 0x00000050;   // As printed in manual; likely inconsistent port
+        delay_ms();
+
+        IO1PIN = 0x00000060;
+        delay_ms();
+
+        IO1PIN = 0x000000A0;
+        delay_ms();
+    }
+}
+
+void delay_ms(void)
+{
+    int i, j;
+    for (i = 0; i < 0x0A; i++)
+        for (j = 0; j < 750; j++);
+}
+
+============================================================
+EXPERIMENT 11 – I2C EEPROM WRITE/READ (MANUAL TITLE SAYS EPROM
+AND INTERRUPT, BUT THE PROGRAM IS AN EEPROM DEMONSTRATION)
+============================================================
+
+#include <LPC214x.h>
+
+#define PCF8574AP
+
+#ifdef PCF8574AP
+    #define U1 0x70
+    #define U2 0x72
+    #define U3 0x74
+    #define U4 0x76
+#endif
+
+#ifdef PCF8574P
+    #define U1 0x40
+    #define U2 0x42
+    #define U3 0x44
+    #define U4 0x46
+#endif
+
+void I2CWrite2402(unsigned char Slv_Addr,
+                  unsigned char wrd_adrs,
+                  unsigned char no_locations);
+unsigned char I2CRead2402(unsigned char Slv_Addr,
+                          unsigned char word_adrs);
+void LED_display(unsigned char Slv_Addr, unsigned char Data);
+void delay(void);
+
+unsigned char Recv_Data[8];
+unsigned char Send_Data[8] =
+    {0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF};
+
+unsigned char lookup[16] =
+{
+    0xC0, 0xF9, 0xA4, 0xB0, 0x99,
+    0x92, 0x82, 0xF8, 0x80, 0x90,
+    0x88, 0x83, 0xC6, 0xA1, 0x86, 0x8E
+};
+
+int main(void)
+{
+    unsigned char i, k;
+
+    PINSEL0 = 0x00000050;       // Select I2C0 SCL0 and SDA0
+    I2C0SCLH = 0xC0;
+    I2C0SCLL = 0xC0;
+
+    while (1)
+    {
+        LED_display(U1, 0xFF);
+        LED_display(U2, 0xFF);
+        LED_display(U3, 0xFF);
+        LED_display(U4, 0xFF);
+
+        I2CWrite2402(0xA0, 0x00, 0x08);
+
+        for (i = 0x00; i < 0x08; i++)
+            Recv_Data[i] = I2CRead2402(0xA1, i);
+
+        for (i = 0x00; i < 0x08; i++)
+        {
+            k = Recv_Data[i] & 0x0F;
+            LED_display(U4, lookup[k]);
+
+            k = (Recv_Data[i] & 0xF0) >> 4;
+            LED_display(U3, lookup[k]);
+
+            delay();
+        }
+    }
+}
+
+void I2CWrite2402(unsigned char Slv_Addr,
+                  unsigned char wrd_adrs,
+                  unsigned char no_locations)
+{
+    unsigned char k;
+
+    I2C0CONSET = 0x40;
+    I2C0CONSET = 0x20;
+    while (I2C0STAT != 0x08);
+    I2C0CONCLR = 0x20;
+
+    I2C0DAT = Slv_Addr;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x18);
+
+    I2C0DAT = wrd_adrs;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x28);
+
+    for (k = 0; k < no_locations; k++)
+    {
+        I2C0DAT = Send_Data[k];
+        I2C0CONCLR = 0x08;
+        while (I2C0STAT != 0x28);
+    }
+
+    I2C0CONSET = 0x10;
+    I2C0CONCLR = 0x08;
+    delay();
+    I2C0CONCLR = 0x40;
+}
+
+unsigned char I2CRead2402(unsigned char Slv_Addr,
+                          unsigned char word_adrs)
+{
+    unsigned char data;
+
+    I2C0CONSET = 0x40;
+    I2C0CONSET = 0x20;
+    while (I2C0STAT != 0x08);
+    I2C0CONCLR = 0x20;
+
+    I2C0DAT = 0xA0;             // EEPROM address + write
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x18);
+
+    I2C0DAT = word_adrs;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x28);
+
+    I2C0CONCLR = 0x40;
+    I2C0CONCLR = 0x08;
+
+    I2C0CONSET = 0x40;
+    I2C0CONSET = 0x20;
+    while (I2C0STAT != 0x08);
+    I2C0CONCLR = 0x20;
+
+    I2C0DAT = Slv_Addr;         // EEPROM address + read
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x40);
+
+    I2C0CONSET = 0x04;          // ACK
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x50);
+
+    data = I2C0DAT;
+
+    I2C0CONCLR = 0x04;
+    I2C0CONSET = 0x10;          // STOP
+    I2C0CONCLR = 0x08;
+    I2C0CONCLR = 0x40;
+
+    return data;
+}
+
+void LED_display(unsigned char Slv_Addr, unsigned char Data)
+{
+    I2C0CONSET = 0x40;
+    I2C0CONSET = 0x20;
+    while (I2C0STAT != 0x08);
+    I2C0CONCLR = 0x20;
+
+    I2C0DAT = Slv_Addr;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x18);
+
+    I2C0DAT = Data;
+    I2C0CONCLR = 0x08;
+    while (I2C0STAT != 0x28);
+
+    I2C0CONSET = 0x10;
+    I2C0CONCLR = 0x08;
+    I2C0CONCLR = 0x40;
+}
+
+void delay(void)
+{
+    unsigned int i, j;
+    for (j = 0; j < 0x300; j++)
+        for (i = 0; i <= 9999; i++);
+}
+
+============================================================
+EXPERIMENT 12 – ADC AND DAC INTERFACING
+============================================================
+
+PROGRAM 1 – ADC (as printed in manual)
+------------------------------------------------------------
+
+#include <LPC214x.h>
+#define CR 0x0D
+
+void delay(unsigned int x)
+{
+    for (; x > 0; x--);
+}
+
+int putkey(int ch)
+{
+    if (ch == '\n')
+    {
+        while (!(U1LSR & 0x20));
+        U1THR = CR;
+    }
+
+    while (!(U1LSR & 0x20));
+    return (U1THR = ch);
+}
+
+void sendstr(char *p)
+{
+    while (*p)
+        putkey(*p++);
+}
+
+int main(void)
+{
+    unsigned long s1 = 0, s2, c, i;
+    unsigned char a;
+
+    IODIR0 = 0x00000000;
+    IODIR1 = 0x00FF0000;
+
+    PINSEL0 = 0x00050000;       // Initialize serial interface
+    U1LCR = 0x83;                // 8 bits, no parity, 1 stop bit
+    U1DLL = 97;                  // 9600 baud at 12 MHz VPB clock
+    U1LCR = 0x03;
+
+    while (1)
+    {
+        sendstr(" \n The Digital Value is:");
+
+        IOSET1 = 0x00020000;    // P1.17: reset integrator
+        delay(0xFF);
+        IOCLR1 = 0x00020000;
+
+        IOSET1 = 0x00010000;    // P1.16
+        for (i = 0x0FFFF; i > 0; i--);
+        IOCLR1 = 0x00010000;
+
+        IOSET1 = 0x00040000;    // P1.18
+
+        s1 = IOPIN0 & 0x00008000;
+
+        for (c = 0x1FFF; c > 0; c--)
+        {
+            s2 = IOPIN0 & 0x00008000;
+            if (s1 != s2)
+                break;
+
+            for (i = 0x00; i < 0x7B; i++);
+        }
+
+        IOSET1 = 0x00020000;
+
+        i = (0xFFFF - c) & 0x1FF;
+
+        if (i > 0x0105)
+            i = 0x00;
+
+        a = (i / 0x100) & 0x0F;
+        if (a <= 9) putkey(a + 0x30);
+        else        putkey(a + 0x37);
+
+        a = (i / 0x10) & 0x0F;
+        if (a <= 9) putkey(a + 0x30);
+        else        putkey(a + 0x37);
+
+        a = i % 0x10;
+        if (a <= 9) putkey(a + 0x30);
+        else        putkey(a + 0x37);
+
+        IOCLR1 = 0x00040000;
+    }
+}
+
+PROGRAM 2 – DAC (as printed in manual)
+------------------------------------------------------------
+
+#include <lpc21xx.h>
+
+void delay(void)
+{
+    unsigned int i;
+    for (i = 0; i <= 10000; i++);
+}
+
+int main(void)
+{
+    PINSEL2 = 0x00000004;
+    IODIR1 = 0x00FF0000;
+
+    while (1)
+    {
+        IOSET1 = 0x00FF0000;
+        delay();
+        IOCLR1 = 0x00FF0000;
+        delay();
+    }
+}
+
+END OF PROGRAM LIST
