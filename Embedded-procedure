@@ -1,0 +1,16 @@
+**Procedure:**
+
+1. Open IAR Embedded Workbench and select **Project → Create New Project**.
+2. Select **Empty Project** and create a new folder for the program.
+3. Give the project a suitable name.
+4. Select **File → New File**, paste the program code and save it with the `.c` extension.
+5. Right-click the project and select **Add → Add Files** to add the program file.
+6. Go to **Options → General Options → Target** and select **ARM Cortex-M4**.
+7. Under **Options → General Options → Device**, select **STM32F407ZG (ST)**.
+8. Go to **Options → C/C++ Compiler → Preprocessor** and add the required header file include path.
+9. Go to **Options → Linker** and select **Override Default**.
+10. Configure the required linker settings and save the project workspace.
+11. Select **Project → Rebuild All** to compile the program.
+12. Check the build output for errors and warnings.
+
+**Result:** The project is created, configured for STM32F407ZG, and successfully compiled in IAR Embedded Workbench.
