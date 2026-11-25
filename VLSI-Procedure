@@ -1,0 +1,29 @@
+Open Xilinx Vivado Project Navigator.
+
+
+
+Create a new project and enter the project name.
+
+
+
+Select the required FPGA device and configure project settings.
+
+
+
+Create a new Verilog module and assign input and output ports.
+
+
+
+Write the Verilog code for LCD initialization and text display.
+
+
+
+Save the program and create the required constraint file.
+
+
+
+Run behavioral simulation and observe the output waveform.
+
+
+
+Verify the LCD display operation using FPGA.
